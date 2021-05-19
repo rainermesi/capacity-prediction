@@ -2,7 +2,7 @@
 
 import pandas as pd
 #from io import BytesIO
-from fbprophet import Prophet
+from prophet import Prophet
 
 raw_df = pd.read_csv('output.csv')
 
@@ -19,14 +19,15 @@ def set_timezone(x):
     x['Timestamp:'] = x['Timestamp:'].dt.floor('h')
     return x
 
-def prep_prophet(x):
+def run_prophet(x):
     z = x.rename(columns={'Venue:':'venue','Capacity:':'y','Timestamp:':'ds'})
     listOfVenues = z.venue.unique()
-    dictOfDataframes = {elem : pd.DataFrame for elem in listOfVenues}
-    for key in dictOfDataframes.keys():
-        dictOfDataframes[key] = z[:][z.venue == key]
-    #z.set_index(keys=['venue'], drop=True,inplace=True)
-    return dictOfDataframes
+    df = z[z.venue == listOfVenues[1]]
+    df = df[['ds','y']]
+    m = Prophet().fit(df)
+    future = m.make_future_dataframe(periods=4,freq='H')
+    forecast = m.predict(future)
+    return forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
 
-test_df = prep_prophet(set_timezone(set_dtypes(strip_col(raw_df))))
+test_df = run_prophet(set_timezone(set_dtypes(strip_col(raw_df))))
 test_df
