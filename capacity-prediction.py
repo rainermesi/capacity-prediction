@@ -17,17 +17,30 @@ def set_dtypes(x):
 def set_timezone(x):
     x['Timestamp:'] = x['Timestamp:'].dt.tz_localize('UTC').dt.tz_convert('Europe/Helsinki').dt.tz_localize(None)
     x['Timestamp:'] = x['Timestamp:'].dt.floor('h')
-    return x
+    z = x[x['Timestamp:'] > '2021-05-01']
+    return z
 
 def run_prophet(x):
+    m = Prophet().fit(x)
+    future = m.make_future_dataframe(periods=24,freq='H')
+    forecast = m.predict(future)
+    return forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(24)
+
+def loop_df(x):
     z = x.rename(columns={'Venue:':'venue','Capacity:':'y','Timestamp:':'ds'})
     listOfVenues = z.venue.unique()
-    df = z[z.venue == listOfVenues[1]]
-    df = df[['ds','y']]
-    m = Prophet().fit(df)
-    future = m.make_future_dataframe(periods=4,freq='H')
-    forecast = m.predict(future)
-    return forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
+    forecast_df = pd.DataFrame(columns=['ds', 'yhat', 'yhat_lower', 'yhat_upper','origin_ds','venue'])
+    for i in listOfVenues:
+        df = z[z['venue'] == i]
+        df = df[['ds','y']]
+        temp_forecast_df = run_prophet(df)
+        temp_forecast_df['venue'] = i
+        temp_forecast_df['origin_ds'] = df['ds'].iloc[-1]
+        forecast_df = forecast_df.append(temp_forecast_df,ignore_index=True)
+    return forecast_df
 
-test_df = run_prophet(set_timezone(set_dtypes(strip_col(raw_df))))
+test_df = loop_df(set_timezone(set_dtypes(strip_col(raw_df))))
+
 test_df
+
+
